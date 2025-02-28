@@ -51,11 +51,6 @@
             font-size: 16px;
             margin-top: 10px;
             text-align: justify;
-            position: relative;
-        }
-
-        #deleteCheckbox {
-            margin-left: 10px;
         }
 
         .content-box {
@@ -65,18 +60,15 @@
             border-radius: 5px;
         }
 
-        .content-box h4 {
-            margin: 5px 0;
-            font-size: 16px;
-        }
-
         .content-list {
             list-style-type: none;
             padding: 0;
         }
 
         .content-list label {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             background: #fff;
             margin: 5px 0;
             padding: 8px;
@@ -84,6 +76,19 @@
             text-align: right;
             border: 1px solid #ddd;
             cursor: pointer;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .positive {
+            accent-color: green;
+        }
+
+        .negative {
+            accent-color: red;
         }
 
         .buttons {
@@ -122,13 +127,8 @@
         </div>
 
         <div class="content-box">
-            <h4>جملات مرتبط</h4>
-            <ul id="mostRelevantList" class="content-list"></ul>
-        </div>
-
-        <div class="content-box">
-            <h4>جملات نامرتبط</h4>
-            <ul id="mostIrrelevantList" class="content-list"></ul>
+            <h4>جملات</h4>
+            <ul id="contentList" class="content-list"></ul>
         </div>
 
         <div class="buttons">
@@ -143,10 +143,13 @@
         let currentIndex = 0;
         let userSelections = {}; 
         let deletedHadiths = new Set();
+        let inputFileName = "output"; // نام پیش‌فرض خروجی
+
 
         document.getElementById('jsonUpload').addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
+                inputFileName = getOutputFileName(file.name); // تنظیم نام فایل خروجی
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     hadiths = JSON.parse(e.target.result);
@@ -158,59 +161,81 @@
                 reader.readAsText(file);
             }
         });
-
+        function getOutputFileName(inputName) {
+            const match = inputName.match(/^input_(\d+)\.json$/);
+            return match ? `output_${match[1]}` : "output";
+        }
         function showHadith() {
-            if (hadiths.length === 0) return;
-            if (currentIndex < 0 || currentIndex >= hadiths.length) return;
+            if (hadiths.length === 0 || currentIndex < 0 || currentIndex >= hadiths.length) return;
 
             const hadith = hadiths[currentIndex];
             document.getElementById('hadithCounter').innerText = `حدیث ${currentIndex + 1} از ${hadiths.length}`;
             document.getElementById('hadithText').innerText = hadith.hadith;
 
-            const deleteCheckbox = document.getElementById("deleteCheckbox");
-            deleteCheckbox.checked = deletedHadiths.has(currentIndex);
-            deleteCheckbox.addEventListener("change", function() {
-                if (deleteCheckbox.checked) {
-                    deletedHadiths.add(currentIndex);
-                } else {
-                    deletedHadiths.delete(currentIndex);
-                }
-            });
+            document.getElementById("deleteCheckbox").checked = deletedHadiths.has(currentIndex);
 
-            function createList(listId, dataKey) {
-                const list = document.getElementById(listId);
-                list.innerHTML = '';
-                hadith[dataKey].forEach(item => {
-                    const label = document.createElement('label');
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.value = item.content;
+            const contentList = document.getElementById("contentList");
+            contentList.innerHTML = '';
 
-                    if (!userSelections[currentIndex]) {
-                        userSelections[currentIndex] = { most_relevant: [], most_irrelevant: [] };
-                    }
-
-                    if (userSelections[currentIndex][dataKey].includes(item.content)) {
-                        checkbox.checked = true;
-                    }
-
-                    checkbox.addEventListener('change', function() {
-                        if (checkbox.checked) {
-                            userSelections[currentIndex][dataKey].push(item.content);
-                        } else {
-                            userSelections[currentIndex][dataKey] = userSelections[currentIndex][dataKey].filter(text => text !== item.content);
-                        }
-                    });
-
-                    label.appendChild(checkbox);
-                    label.appendChild(document.createTextNode(` ${item.content} (شباهت: ${item.similarity.toFixed(2)})`));
-                    list.appendChild(label);
-                });
+            if (!userSelections[currentIndex]) {
+                userSelections[currentIndex] = { positive: [], negative: [] };
             }
 
-            createList("mostRelevantList", "most_relevant");
-            createList("mostIrrelevantList", "most_irrelevant");
+            hadith.most_relevant.concat(hadith.most_irrelevant).forEach(item => {
+                const label = document.createElement('label');
+                const textNode = document.createTextNode(`${item.content} (شباهت: ${item.similarity.toFixed(2)})`);
+                
+                const checkboxGroup = document.createElement('div');
+                checkboxGroup.className = "checkbox-group";
+
+                const positiveCheckbox = document.createElement('input');
+                positiveCheckbox.type = 'checkbox';
+                positiveCheckbox.className = "positive";
+
+                const negativeCheckbox = document.createElement('input');
+                negativeCheckbox.type = 'checkbox';
+                negativeCheckbox.className = "negative";
+
+                positiveCheckbox.checked = userSelections[currentIndex].positive.includes(item.content);
+                negativeCheckbox.checked = userSelections[currentIndex].negative.includes(item.content);
+
+                positiveCheckbox.addEventListener('change', function() {
+                    if (positiveCheckbox.checked) {
+                        negativeCheckbox.checked = false;
+                        userSelections[currentIndex].positive.push(item.content);
+                        userSelections[currentIndex].negative = userSelections[currentIndex].negative.filter(text => text !== item.content);
+                    } else {
+                        userSelections[currentIndex].positive = userSelections[currentIndex].positive.filter(text => text !== item.content);
+                    }
+                });
+
+                negativeCheckbox.addEventListener('change', function() {
+                    if (negativeCheckbox.checked) {
+                        positiveCheckbox.checked = false;
+                        userSelections[currentIndex].negative.push(item.content);
+                        userSelections[currentIndex].positive = userSelections[currentIndex].positive.filter(text => text !== item.content);
+                    } else {
+                        userSelections[currentIndex].negative = userSelections[currentIndex].negative.filter(text => text !== item.content);
+                    }
+                });
+
+                checkboxGroup.appendChild(positiveCheckbox);
+                checkboxGroup.appendChild(negativeCheckbox);
+
+                label.appendChild(textNode);
+                label.appendChild(checkboxGroup);
+                contentList.appendChild(label);
+            });
         }
+
+        document.getElementById('nextBtn').addEventListener('click', function() {
+            if (currentIndex < hadiths.length - 1) {
+                currentIndex++;
+                showHadith();
+            } else {
+                alert("حدیث آخر است.");
+            }
+        });
 
         document.getElementById('prevBtn').addEventListener('click', function() {
             if (currentIndex > 0) {
@@ -219,32 +244,33 @@
             }
         });
 
-        document.getElementById('nextBtn').addEventListener('click', function() {
-            if (currentIndex < hadiths.length - 1) {
-                currentIndex++;
-                showHadith();
-            }
-        });
-
         document.getElementById('saveBtn').addEventListener('click', function() {
             const finalData = hadiths
-                .map((h, i) => deletedHadiths.has(i) ? null : ({
-                    hadith: h.hadith,
-                    most_relevant: userSelections[i]?.most_relevant || [],
-                    most_irrelevant: userSelections[i]?.most_irrelevant || []
-                }))
-                .filter(Boolean);
+                .map((h, i) => {
+                    if (deletedHadiths.has(i)) return null;
+
+                    const positiveList = userSelections[i]?.positive || [];
+                    const negativeList = userSelections[i]?.negative || [];
+
+                    if (positiveList.length === 0 && negativeList.length === 0) {
+                        return null;
+                    }
+
+                    return { hadith: h.hadith, positive: positiveList, negative: negativeList };
+                })
+                .filter(h => h !== null);
 
             const blob = new Blob([JSON.stringify(finalData, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = "filtered_hadiths.json";
+            a.download = `${inputFileName}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
         });
 
+       
     </script>
 
 </body>
