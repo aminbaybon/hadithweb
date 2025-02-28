@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحلیل احادیث</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap');
+
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            direction: rtl;
+            text-align: center;
+            background: #ffffff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin: 10px 0;
+            background: #f8f8f8;
+            cursor: pointer;
+        }
+
+        h2, h3 {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        #hadithCounter {
+            font-size: 16px;
+            margin: 10px 0;
+        }
+
+        #hadithContainer {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-top: 10px;
+            text-align: justify;
+            position: relative;
+        }
+
+        #deleteCheckbox {
+            margin-left: 10px;
+        }
+
+        .content-box {
+            margin-top: 15px;
+            background: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .content-box h4 {
+            margin: 5px 0;
+            font-size: 16px;
+        }
+
+        .content-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .content-list label {
+            display: block;
+            background: #fff;
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            text-align: right;
+            border: 1px solid #ddd;
+            cursor: pointer;
+        }
+
+        .buttons {
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 15px;
+            font-size: 14px;
+            border: 1px solid #000;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            background: none;
+        }
+
+        button:hover {
+            background: #f0f0f0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>آپلود فایل JSON</h2>
+        <input type="file" id="jsonUpload" accept=".json">
+
+        <h3>متن حدیث</h3>
+        <p id="hadithCounter">...</p>
+        <div id="hadithContainer">
+            <label>
+                <input type="checkbox" id="deleteCheckbox"> حذف این حدیث از خروجی
+            </label>
+            <p id="hadithText">...</p>
+        </div>
+
+        <div class="content-box">
+            <h4>جملات مرتبط</h4>
+            <ul id="mostRelevantList" class="content-list"></ul>
+        </div>
+
+        <div class="content-box">
+            <h4>جملات نامرتبط</h4>
+            <ul id="mostIrrelevantList" class="content-list"></ul>
+        </div>
+
+        <div class="buttons">
+            <button id="prevBtn">قبلی</button>
+            <button id="nextBtn">بعدی</button>
+            <button id="saveBtn">ذخیره و دانلود</button>
+        </div>
+    </div>
+
+    <script>
+        let hadiths = [];
+        let currentIndex = 0;
+        let userSelections = {}; 
+        let deletedHadiths = new Set();
+
+        document.getElementById('jsonUpload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    hadiths = JSON.parse(e.target.result);
+                    currentIndex = 0;
+                    userSelections = {};
+                    deletedHadiths.clear();
+                    showHadith();
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function showHadith() {
+            if (hadiths.length === 0) return;
+            if (currentIndex < 0 || currentIndex >= hadiths.length) return;
+
+            const hadith = hadiths[currentIndex];
+            document.getElementById('hadithCounter').innerText = `حدیث ${currentIndex + 1} از ${hadiths.length}`;
+            document.getElementById('hadithText').innerText = hadith.hadith;
+
+            const deleteCheckbox = document.getElementById("deleteCheckbox");
+            deleteCheckbox.checked = deletedHadiths.has(currentIndex);
+            deleteCheckbox.addEventListener("change", function() {
+                if (deleteCheckbox.checked) {
+                    deletedHadiths.add(currentIndex);
+                } else {
+                    deletedHadiths.delete(currentIndex);
+                }
+            });
+
+            function createList(listId, dataKey) {
+                const list = document.getElementById(listId);
+                list.innerHTML = '';
+                hadith[dataKey].forEach(item => {
+                    const label = document.createElement('label');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = item.content;
+
+                    if (!userSelections[currentIndex]) {
+                        userSelections[currentIndex] = { most_relevant: [], most_irrelevant: [] };
+                    }
+
+                    if (userSelections[currentIndex][dataKey].includes(item.content)) {
+                        checkbox.checked = true;
+                    }
+
+                    checkbox.addEventListener('change', function() {
+                        if (checkbox.checked) {
+                            userSelections[currentIndex][dataKey].push(item.content);
+                        } else {
+                            userSelections[currentIndex][dataKey] = userSelections[currentIndex][dataKey].filter(text => text !== item.content);
+                        }
+                    });
+
+                    label.appendChild(checkbox);
+                    label.appendChild(document.createTextNode(` ${item.content} (شباهت: ${item.similarity.toFixed(2)})`));
+                    list.appendChild(label);
+                });
+            }
+
+            createList("mostRelevantList", "most_relevant");
+            createList("mostIrrelevantList", "most_irrelevant");
+        }
+
+        document.getElementById('prevBtn').addEventListener('click', function() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                showHadith();
+            }
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', function() {
+            if (currentIndex < hadiths.length - 1) {
+                currentIndex++;
+                showHadith();
+            }
+        });
+
+        document.getElementById('saveBtn').addEventListener('click', function() {
+            const finalData = hadiths
+                .map((h, i) => deletedHadiths.has(i) ? null : ({
+                    hadith: h.hadith,
+                    most_relevant: userSelections[i]?.most_relevant || [],
+                    most_irrelevant: userSelections[i]?.most_irrelevant || []
+                }))
+                .filter(Boolean);
+
+            const blob = new Blob([JSON.stringify(finalData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "filtered_hadiths.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+    </script>
+
+</body>
+</html>
